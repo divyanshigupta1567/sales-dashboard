@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voyx Admin | BOM</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.9/dist/chart.umd.min.js"></script>
+
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Voyx Admin home">VOYX</a>
+
+      <div class="topbar-actions">
+        <button class="date-pill" id="datePill" type="button">18 Jun 2026</button>
+
+        <div class="tabs" role="tablist" aria-label="Dashboard sections">
+          <button class="tab active" type="button" aria-selected="true">
+            <span class="tab-icon">▦</span> Dashboard
+          </button>
+          <button class="tab" type="button" aria-selected="false">
+            <span class="tab-icon">▣</span> Wallet Summary
+          </button>
+        </div>
+
+        <button class="download-btn" id="downloadCsvBtn" type="button">
+          <span>↓</span> Download CSV
+        </button>
+
+        <div class="admin-user">
+          <strong>Voyx Admin</strong>
+          <a href="#" id="logoutLink">Logout ↪</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="dashboard">
+      <!-- KPI cards -->
+      <section class="kpi-grid" aria-label="Key performance indicators">
+        <article class="kpi-card kpi-dark" id="todayCard">
+          <div class="kpi-label">TODAY PERFORMANCE</div>
+          <div class="kpi-number"><span id="todayOrders">—</span> <small>Orders</small></div>
+          <div class="kpi-revenue"><span id="todayRevenue">—</span> Revenue</div>
+        </article>
+
+        <article class="kpi-card loading-card" id="mtdCard">
+          <div class="icon-badge orange">▥</div>
+          <div class="kpi-label">JUNE MTD</div>
+          <div class="kpi-number" id="mtdOrders">—</div>
+          <div class="kpi-revenue"><span id="mtdRevenue">—</span> Revenue</div>
+        </article>
+
+        <article class="kpi-card loading-card" id="sameDayCard">
+          <div class="icon-badge">◷</div>
+          <div class="kpi-label">PREV MONTH (SAME DAY)</div>
+          <div class="kpi-number" id="sameDayOrders">—</div>
+          <div class="kpi-revenue"><span id="sameDayRevenue">—</span> Revenue</div>
+        </article>
+
+        <article class="kpi-card loading-card" id="prevMonthCard">
+          <div class="icon-badge">▣</div>
+          <div class="kpi-label">PREV MONTH</div>
+          <div class="kpi-number" id="prevMonthOrders">—</div>
+          <div class="kpi-revenue"><span id="prevMonthRevenue">—</span> Revenue</div>
+        </article>
+      </section>
+
+      <!-- Leaderboard + destinations -->
+      <section class="middle-grid">
+        <article class="panel leaderboard-panel">
+          <div class="panel-header">
+            <div class="panel-title">
+              <span class="header-icon">▥</span>
+              <span>DAILY LEADERBOARD</span>
+            </div>
+            <span class="panel-status" id="leaderboardStatus"></span>
+          </div>
+
+          <div class="table-wrap">
+            <table id="leaderboardTable">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>SALES_R</th>
+                  <th>#DAY</th>
+                  <th>#MTD</th>
+                  <th>MTD REV</th>
+                  <th>ARPU</th>
+                  <th>TARGET</th>
+                  <th>#PV_MONTH</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboardBody"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel destinations-panel">
+          <div class="panel-header dark-header">
+            <div class="panel-title">
+              <span class="header-icon">◉</span>
+              <span>TOP DESTINATIONS</span>
+            </div>
+          </div>
+          <div class="destination-list" id="destinationList"></div>
+        </article>
+      </section>
+
+      <!-- Charts -->
+      <section class="charts-grid">
+        <article class="chart-card">
+          <div class="panel-header">
+            <div class="panel-title">
+              <span class="header-icon">▥</span>
+              <span>DAILY SUMMARY</span>
+            </div>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="dailyChart"></canvas>
+          </div>
+        </article>
+
+        <article class="chart-card">
+          <div class="panel-header">
+            <div class="panel-title">
+              <span class="header-icon">▥</span>
+              <span>MONTHLY SUMMARY</span>
+            </div>
+          </div>
+          <div class="chart-wrap">
+            <canvas id="monthlyChart"></canvas>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <script src="api.js?v=2"></script>
+<script src="app.js?v=2"></script>
+</body>
+</html>
