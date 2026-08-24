@@ -48,7 +48,7 @@ const TABLES = {
 };
 
 /* Default / initial dashboard date (ISO format, matches <input type="date">). */
-const DASHBOARD_DATE = "2026-05-17";
+const DASHBOARD_DATE = "2026-05-20";
 
 /* Supabase configuration check */
 const isSupabaseConfigured =
@@ -103,15 +103,7 @@ const MOCK = {
     { sales_r: "Farooq", day_orders: 2, day_revenue: 1100, mtd_orders: 9, mtd_rev: 9000, arpu: 997, target_pct: 7, target: 125, prev_month_orders: 0 },
   ],
 
-  destinations: [
-    { destination_name: "Thailand [True]", order_count: 231 },
-    { destination_name: "Thailand", order_count: 206 },
-    { destination_name: "Singapore, Malaysia", order_count: 33 },
-    { destination_name: "Vietnam", order_count: 30 },
-    { destination_name: "Singapore, Malaysia, Thailand...", order_count: 17 },
-    { destination_name: "Japan", order_count: 15 },
-    { destination_name: "Singapore, Malaysia, Indonesia...", order_count: 10 },
-  ],
+  
 
   /* Shaped to match dashboard.daily_metrics: order_date, no_of_sales, total_revenue */
   dailyChart: [
