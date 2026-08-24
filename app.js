@@ -291,11 +291,9 @@ async function fetchTopDestinations() {
   if (!supabaseClient) return MOCK.destinations;
 
   try {
-    const { data, error } = await supabaseClient
-      .schema("sales_dashboard")
-      .from(TABLES.destinations)
-      .select("*")
-      .order("order_count", { ascending: false });
+    const { data, error } = await supabaseClient.rpc("get_top_destinations", {
+      report_date: currentDate,
+    });
 
     if (error) throw error;
     return data?.length ? data : MOCK.destinations;
