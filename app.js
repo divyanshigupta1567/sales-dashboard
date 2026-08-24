@@ -14,10 +14,19 @@
     client-side. target / target_pct / prev_month_orders are NOT
     present in the RPC output — these render as "—" instead of a
     fake 0, since faking them would be misleading.
-  - Daily/monthly charts and destinations are fetched from their
-    original separate tables (not the RPC's daily_metrics/month_metrics,
-    which don't contain revenue or formatted month labels and would
-    render blank).
+  - Daily chart now reads dashboard.daily_metrics from the RPC
+    (order_date, no_of_sales, total_revenue) instead of the separate
+    unfiltered daily_summary_chart table. This means it now correctly
+    updates when the date picker changes, since daily_metrics is
+    computed relative to report_date server-side.
+  - Monthly chart now reads dashboard.month_metrics from the RPC
+    (month_label, no_of_sales, revenue) instead of the separate
+    unfiltered monthly_summary_chart table. Requires the updated
+    get_sales_dashboard SQL (see get_sales_dashboard.sql) that adds
+    month_label and revenue to the month_summary CTE.
+  - Destinations are still fetched from the original separate
+    "destinations" table (not part of the RPC yet) and are NOT
+    currently date-scoped — see fetchTopDestinations() below.
   - A functional <input type="date"> now drives loadDashboard(), fully
     replacing the static datePill text.
 */
@@ -104,36 +113,38 @@ const MOCK = {
     { destination_name: "Singapore, Malaysia, Indonesia...", order_count: 10 },
   ],
 
+  /* Shaped to match dashboard.daily_metrics: order_date, no_of_sales, total_revenue */
   dailyChart: [
-    { date: "2026-06-01", order_count: 36 },
-    { date: "2026-06-02", order_count: 44 },
-    { date: "2026-06-03", order_count: 36 },
-    { date: "2026-06-04", order_count: 49 },
-    { date: "2026-06-05", order_count: 31 },
-    { date: "2026-06-06", order_count: 32 },
-    { date: "2026-06-07", order_count: 57 },
-    { date: "2026-06-08", order_count: 40 },
-    { date: "2026-06-09", order_count: 39 },
-    { date: "2026-06-10", order_count: 25 },
-    { date: "2026-06-11", order_count: 41 },
-    { date: "2026-06-12", order_count: 24 },
-    { date: "2026-06-13", order_count: 27 },
-    { date: "2026-06-14", order_count: 28 },
-    { date: "2026-06-15", order_count: 53 },
-    { date: "2026-06-16", order_count: 30 },
-    { date: "2026-06-17", order_count: 32 },
-    { date: "2026-06-18", order_count: 33 },
+    { order_date: "2026-06-01", no_of_sales: 36, total_revenue: 33500 },
+    { order_date: "2026-06-02", no_of_sales: 44, total_revenue: 41000 },
+    { order_date: "2026-06-03", no_of_sales: 36, total_revenue: 33500 },
+    { order_date: "2026-06-04", no_of_sales: 49, total_revenue: 45600 },
+    { order_date: "2026-06-05", no_of_sales: 31, total_revenue: 28800 },
+    { order_date: "2026-06-06", no_of_sales: 32, total_revenue: 29800 },
+    { order_date: "2026-06-07", no_of_sales: 57, total_revenue: 53100 },
+    { order_date: "2026-06-08", no_of_sales: 40, total_revenue: 37200 },
+    { order_date: "2026-06-09", no_of_sales: 39, total_revenue: 36300 },
+    { order_date: "2026-06-10", no_of_sales: 25, total_revenue: 23300 },
+    { order_date: "2026-06-11", no_of_sales: 41, total_revenue: 38200 },
+    { order_date: "2026-06-12", no_of_sales: 24, total_revenue: 22400 },
+    { order_date: "2026-06-13", no_of_sales: 27, total_revenue: 25200 },
+    { order_date: "2026-06-14", no_of_sales: 28, total_revenue: 26100 },
+    { order_date: "2026-06-15", no_of_sales: 53, total_revenue: 49400 },
+    { order_date: "2026-06-16", no_of_sales: 30, total_revenue: 27900 },
+    { order_date: "2026-06-17", no_of_sales: 32, total_revenue: 29800 },
+    { order_date: "2026-06-18", no_of_sales: 33, total_revenue: 30700 },
   ],
 
+  /* Shaped to match dashboard.month_metrics: month_label, no_of_sales, revenue */
   monthlyChart: [
-    { month_label: "Nov 25", revenue: 90, order_count: 90 },
-    { month_label: "Dec 25", revenue: 210, order_count: 210 },
-    { month_label: "Jan 26", revenue: 335, order_count: 335 },
-    { month_label: "Feb 26", revenue: 420, order_count: 420 },
-    { month_label: "Mar 26", revenue: 530, order_count: 530 },
-    { month_label: "Apr 26", revenue: 690, order_count: 690 },
-    { month_label: "May 26", revenue: 950, order_count: 950 },
-    { month_label: "Jun 26", revenue: 650, order_count: 650 },
+    { month_label: "Nov 25", no_of_sales: 90, revenue: 83700 },
+    { month_label: "Dec 25", no_of_sales: 210, revenue: 195300 },
+    { month_label: "Jan 26", no_of_sales: 335, revenue: 311550 },
+    { month_label: "Feb 26", no_of_sales: 420, revenue: 390600 },
+    { month_label: "Mar 26", no_of_sales: 530, revenue: 492900 },
+    { month_label: "Apr 26", no_of_sales: 690, revenue: 641700 },
+    { month_label: "May 26", no_of_sales: 950, revenue: 883500 },
+    { month_label: "Jun 26", no_of_sales: 650, revenue: 604500 },
   ],
 };
 
@@ -265,11 +276,16 @@ function normalizeRows(value) {
   return [value];
 }
 
-/* ---------- REQUIRED ASYNC DATA FUNCTIONS ---------- */
-/* NOTE: these still fetch the WHOLE table unfiltered, same as the original
-   file. They are not currently date-scoped from the client side — doing
-   that safely requires confirming the actual filterable column names in
-   daily_summary_chart / monthly_summary_chart / top_destinations first. */
+/* ---------- LEGACY TABLE FETCHERS (destinations only, currently unfiltered) ---------- */
+/* NOTE: destinations are NOT part of the get_sales_dashboard() RPC yet, so this
+   still fetches the WHOLE table unfiltered and is NOT date-scoped from the
+   client side. Doing that safely requires confirming the destinations table's
+   date column (or adding destinations to the RPC, scoped by report_date).
+
+   fetchDailyChart()/fetchMonthlyChart() below are kept only as manual/debug
+   helpers — the live dashboard no longer calls them. Daily and monthly chart
+   data now comes straight from the RPC's dashboard.daily_metrics /
+   dashboard.month_metrics, which ARE correctly scoped to report_date. */
 
 async function fetchTopDestinations() {
   if (!supabaseClient) return MOCK.destinations;
@@ -289,6 +305,7 @@ async function fetchTopDestinations() {
   }
 }
 
+/* Unused by loadDashboard() now — retained for manual/debug use only. */
 async function fetchDailyChart() {
   if (!supabaseClient) return MOCK.dailyChart;
 
@@ -307,6 +324,7 @@ async function fetchDailyChart() {
   }
 }
 
+/* Unused by loadDashboard() now — retained for manual/debug use only. */
 async function fetchMonthlyChart() {
   if (!supabaseClient) return MOCK.monthlyChart;
 
@@ -558,11 +576,14 @@ function buildChartOptions(maxY, stepSize) {
   };
 }
 
+/* Reads dashboard.daily_metrics from the RPC: { order_date, no_of_sales, total_revenue }[]
+   This is already scoped to report_date's month server-side, so the chart now
+   correctly re-renders whenever the date picker changes. */
 function renderDailyChart(rows) {
   rows = normalizeRows(rows);
 
   const labels = rows.map((row) => {
-    const raw = String(firstDefined(row, ["date", "day", "label"], ""));
+    const raw = String(firstDefined(row, ["order_date", "date", "day", "label"], ""));
     const date = new Date(raw);
     return Number.isNaN(date.getTime())
       ? raw
@@ -570,13 +591,19 @@ function renderDailyChart(rows) {
   });
 
   const values = rows.map((row) =>
-    numberValue(firstDefined(row, ["order_count", "orders", "count", "value"], 0))
+    numberValue(firstDefined(row, ["no_of_sales", "order_count", "orders", "count", "value"], 0))
   );
 
   const ctx = document.getElementById("dailyChart");
   if (!ctx || typeof Chart === "undefined") return;
 
   dailyChartInstance?.destroy();
+
+  /* Auto-scale the y-axis to the data instead of a hardcoded 60/10,
+     since a full month of daily volume can vary a lot by report_date. */
+  const maxValue = values.length ? Math.max(...values) : 0;
+  const yMax = Math.max(10, Math.ceil((maxValue * 1.2) / 10) * 10);
+  const yStep = Math.max(5, Math.round(yMax / 6 / 5) * 5);
 
   dailyChartInstance = new Chart(ctx, {
     type: "line",
@@ -598,22 +625,30 @@ function renderDailyChart(rows) {
         },
       ],
     },
-    options: buildChartOptions(60, 10),
+    options: buildChartOptions(yMax, yStep),
   });
 }
 
+/* Reads dashboard.month_metrics from the RPC: { month_label, no_of_sales, revenue }[]
+   Requires the updated get_sales_dashboard SQL that adds month_label + revenue. */
 function renderMonthlyChart(rows) {
   rows = normalizeRows(rows);
 
   const labels = rows.map((row) => firstDefined(row, ["month_label", "month", "label"], ""));
   const values = rows.map((row) =>
-    numberValue(firstDefined(row, ["revenue", "order_count", "orders", "value"], 0))
+    numberValue(firstDefined(row, ["revenue", "no_of_sales", "order_count", "orders", "value"], 0))
   );
 
   const ctx = document.getElementById("monthlyChart");
   if (!ctx || typeof Chart === "undefined") return;
 
   monthlyChartInstance?.destroy();
+
+  /* Auto-scale here too — revenue in rupees is on a very different
+     scale than the old placeholder order-count numbers. */
+  const maxValue = values.length ? Math.max(...values) : 0;
+  const yMax = Math.max(100, Math.ceil((maxValue * 1.2) / 100) * 100);
+  const yStep = Math.max(50, Math.round(yMax / 5 / 50) * 50);
 
   monthlyChartInstance = new Chart(ctx, {
     type: "line",
@@ -635,7 +670,7 @@ function renderMonthlyChart(rows) {
         },
       ],
     },
-    options: buildChartOptions(1000, 200),
+    options: buildChartOptions(yMax, yStep),
   });
 }
 
@@ -817,22 +852,21 @@ async function loadDashboard(selectedDate = currentDate) {
       RPC JSON fields:
         daily_metrics, month_metrics, kpi_metrics, sales_rep_metrics
       kpi_metrics / sales_rep_metrics drive the KPI cards + leaderboard.
-      Charts + destinations intentionally still use the separate tables
-      (daily_metrics/month_metrics lack revenue + formatted labels).
+      daily_metrics / month_metrics now drive the two charts directly —
+      both are computed relative to report_date (daily_metrics scoped to
+      the report month; month_metrics is the full month-over-month trend),
+      so the charts update whenever the date picker changes.
     */
     renderDailyPerformance(dashboard.kpi_metrics);
     renderMonthlyPerformance(dashboard.kpi_metrics);
     renderLeaderboard(dashboard.sales_rep_metrics, true);
+    renderDailyChart(dashboard.daily_metrics);
+    renderMonthlyChart(dashboard.month_metrics);
 
-    const [destinations, dailyChart, monthlyChart] = await Promise.all([
-      fetchTopDestinations(),
-      fetchDailyChart(),
-      fetchMonthlyChart(),
-    ]);
-
+    /* Destinations are still a separate, unfiltered table fetch —
+       not yet part of the RPC. See fetchTopDestinations() above. */
+    const destinations = await fetchTopDestinations();
     renderDestinations(destinations);
-    renderDailyChart(dailyChart);
-    renderMonthlyChart(monthlyChart);
 
     console.log(`✅ Dashboard rendered successfully for ${currentDate}.`);
   } catch (error) {
